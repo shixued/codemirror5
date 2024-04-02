@@ -41,8 +41,13 @@ export default class TextareaInput {
     // Needed to hide big blue blinking cursor on Mobile Safari (doesn't seem to work in iOS 8 anymore)
     if (ios) te.style.width = "0px"
 
-    on(te, "input", () => {
+    on(te, "input", (e) => {
       if (ie && ie_version >= 9 && this.hasSelection) this.hasSelection = null
+      // sxd 定义一个选项，为中文的时候，当输入张三时，input没有优先键入zhangsan拼音这种现象，重现方式：chrome.exe 复制一个，重命名为chrome-test.exe,打开百度，在输入框中输入张三时，没有预键入拼音，而是输入完后直接键入张三。和chrome.exe打开百度时输入张三，输入框的预填入内容为zhangsan拼音不同
+      if(cm.options.IMECompatible){
+        return
+      }
+      
       input.poll()
     })
 
@@ -94,7 +99,7 @@ export default class TextareaInput {
       if (!eventInWidget(display, e)) e_preventDefault(e)
     })
 
-    on(te, "compositionstart", () => {
+    on(te, "compositionstart", (e) => {
       let start = cm.getCursor("from")
       if (input.composing) input.composing.range.clear()
       input.composing = {
@@ -102,11 +107,20 @@ export default class TextareaInput {
         range: cm.markText(start, cm.getCursor("to"), {className: "CodeMirror-composing"})
       }
     })
-    on(te, "compositionend", () => {
+    on(te, "compositionend", (e) => {
       if (input.composing) {
-        input.poll()
-        input.composing.range.clear()
-        input.composing = null
+        // sxd
+        if(!cm.options.IMECompatible){
+          input.poll()
+          input.composing.range.clear()
+          input.composing = null
+        }else{
+          input.composing.range.clear();
+          cm.replaceRange(e.data,input.composing.start,cm.getCursor("to"))
+          input.composing = null;
+        }
+        
+       
       }
     })
   }
@@ -262,9 +276,15 @@ export default class TextareaInput {
       applyTextInput(cm, text.slice(same), prevInput.length - same,
                      null, this.composing ? "*compose" : null)
 
-      // Don't leave long text in the textarea, since it makes further polling slow
-      if (text.length > 1000 || text.indexOf("\n") > -1) input.value = this.prevInput = ""
-      else this.prevInput = text
+     
+      // sxd
+      if (this.composing && cm.options.IMECompatible){
+        this.prevInput = text
+      }else{
+         // Don't leave long text in the textarea, since it makes further polling slow
+        if (text.length > 1000 || text.indexOf("\n") > -1) input.value = this.prevInput = ""
+        else this.prevInput = text
+      }
 
       if (this.composing) {
         this.composing.range.clear()
